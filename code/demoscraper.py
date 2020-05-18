@@ -1,3 +1,4 @@
+import re
 import requests
 import bs4
 from bs4 import BeautifulSoup
@@ -6,6 +7,7 @@ import pandas as pd
 import time
 import psycopg2
 from psycopg2 import Error
+from datetime import date, timedelta
 
 
 URL = "https://ca.indeed.com/jobs?q=developer&l=Toronto%2C+ON"
@@ -32,20 +34,6 @@ def extract_posting_id(soup):
     ids.append(div.get("data-jk"))
   return(ids)
 
-# postingIDs = extract_posting_id(soup)
-# print(postingIDs)
-# print(len(postingIDs))
-
-# for pID in postingIDs:
-#   items = []
-#   python_button = driver.find_element_by_xpath(f"//div[@data-jk='{pID}']")
-#   python_button.click()
-#   time.sleep(1)
-#   jobdesc_elements = driver.find_elements_by_xpath('//*[@id="vjs-desc"]')
-
-#   for itm in jobdesc_elements:
-#     print(itm.get_attribute('innerText'))
-
 #blank list
 job_postings = []
 for div in soup.findAll("div", attrs={"class": "jobsearch-SerpJobCard"}):
@@ -55,7 +43,8 @@ for div in soup.findAll("div", attrs={"class": "jobsearch-SerpJobCard"}):
     'company':'',
     'location':'',
     'salary':'',
-    'description':''
+    'description':'',
+    'dateposted': date(1900, 1, 1)
   }
   #grab titles
   for a in div.find_all(name="a", attrs={"data-tn-element":"jobTitle"}):
@@ -72,64 +61,71 @@ for div in soup.findAll("div", attrs={"class": "jobsearch-SerpJobCard"}):
   #grab location
   for span in div.findAll("span", attrs={"class": "location"}):
     info['location']=span.text
+  #grab date
+  dates = []
+  pattern = re.compile(r'(Just\sposted|Today|\d{1,2})(?:.?\s)*(day|hour|week|month|year|minute|second)*')
+  today = date.today()
+
+  for span in div.findAll("span", attrs={"class": "date"}):
+    timetext = pattern.match(span.text)
+    if (timetext is not None):
+      if (timetext.group(2) == 'month'):
+        timeunit = 'days'
+        timeamount = timeamount / 30     
+      elif (timetext.group(2) == 'year'):
+        timeunit = 'days'
+        timeamount = timeamount / 365
+      elif (timetext.group(1) == 'Today' or timetext.group(1) == 'Just posted'):
+        timeunit = 'days'
+        timeamount = 0
+      else:
+        timeunit = timetext.group(2) + 's'
+        timeamount = int(timetext.group(1))
+    
+    postdate = today - timedelta(**{timeunit: timeamount})
+    info['dateposted']=postdate
+
   #grab description
-  postingID = div.get("data-jk")
-  python_button = driver.find_element_by_xpath(f"//div[@data-jk='{postingID}']")
-  python_button.click()
-  time.sleep(1)
-  jobdesc_elements = driver.find_elements_by_xpath('//*[@id="vjs-desc"]')
-  for itm in jobdesc_elements:
-    info['description']+=itm.get_attribute('innerText')
+  # postingID = div.get("data-jk")
+  # python_button = driver.find_element_by_xpath(f"//div[@data-jk='{postingID}']")
+  # python_button.click()
+  # time.sleep(1)
+  # jobdesc_elements = driver.find_elements_by_xpath('//*[@id="vjs-desc"]')
+  # for itm in jobdesc_elements:
+  #   info['description']+=itm.get_attribute('innerText')
   #grab URL
     #grab it later
   #append to job_postings
   job_postings.append(info)
 print(job_postings)
 
-try:
-  connection = psycopg2.connect(user = "eden",
-                                password = "Ed3nEd3nEd3n",
-                                host = "127.0.0.1",
-                                port = "5432",
-                                database = "jobsdb")
-  cursor = connection.cursor()
+          # try:
+          #   connection = psycopg2.connect(user = "eden",
+          #                                 password = "Ed3nEd3nEd3n",
+          #                                 host = "127.0.0.1",
+          #                                 port = "5432",
+          #                                 database = "jobsdb")
+          #   cursor = connection.cursor()
 
-  postgres_insert_query = """ INSERT INTO jobs (DESCRIPTION, TITLE, COMPANY, LOCATION, SALARY) VALUES (%s,%s,%s,%s,%s)"""
-  for jp in job_postings:
-    record_to_insert = (jp['description'], jp['title'], jp['company'], jp['location'], '$9999.99')
-    cursor.execute(postgres_insert_query, record_to_insert)
+          #   postgres_insert_query = """ INSERT INTO jobs (DESCRIPTION, TITLE, COMPANY, LOCATION, SALARY) VALUES (%s,%s,%s,%s,%s)"""
+          #   for jp in job_postings:
+          #     record_to_insert = (jp['description'], jp['title'], jp['company'], jp['location'], '$9999.99')
+          #     cursor.execute(postgres_insert_query, record_to_insert)
 
-  connection.commit()
-  count = cursor.rowcount
-  print (count, "Record inserted successfully into jobs table")
+          #   connection.commit()
+          #   count = cursor.rowcount
+          #   print (count, "Record inserted successfully into jobs table")
 
-except (Exception, psycopg2.Error) as error :
-    if(connection):
-        print("Failed to insert record into jobs table", error)
+          # except (Exception, psycopg2.Error) as error :
+          #     if(connection):
+          #         print("Failed to insert record into jobs table", error)
 
-finally:
-    #closing database connection.
-    if(connection):
-        cursor.close()
-        connection.close()
-        print("PostgreSQL connection is closed")    
-
-
-# while True:
-#     items = [itm.get_text(strip=True) for itm in soup.select('.lister-item-content a[href^="/title/"]')]
-#     print(items)
-
-#     try:
-#         driver.find_element_by_xpath('//a[contains(.,"Next")]').click()
-#         soup = BeautifulSoup(driver.page_source,"lxml")
-#     except Exception: break
-
-#printing soup in a more structured tree format that makes for easier reading
-#print(soup.prettify())
-# python_button = driver.find_element_by_xpath("//*[@id='p_e079b481b0f32776']") 
-# python_button.click()
-
-# driver.findElements(By.xpath(f"//div[@data-jk={'e079b481b0f32776'}]"))
+          # finally:
+          #     #closing database connection.
+          #     if(connection):
+          #         cursor.close()
+          #         connection.close()
+          #         print("PostgreSQL connection is closed")    
 
 
 #driver.quit()
@@ -182,6 +178,33 @@ def extract_location_from_result(soup):
 # print(joblocations)
 # print(len(joblocations))
 
+def extract_dates_from_result(soup):
+  dates = []
+  pattern = re.compile(r'(Just\sposted|Today|\d{1,2})(?:.?\s)*(day|hour|week|month|year|minute|second)*')
+  today = date.today()
 
+  spans = soup.findAll("span", attrs={"class": "date"})
+  for span in spans:
+    timetext = pattern.match(span.text)
+    if (timetext is not None):
+      if (timetext.group(2) == 'month'):
+        timeunit = 'days'
+        timeamount = timeamount / 30     
+      elif (timetext.group(2) == 'year'):
+        timeunit = 'days'
+        timeamount = timeamount / 365
+      elif (timetext.group(1) == 'Today' or timetext.group(1) == 'Just posted'):
+        timeunit = 'days'
+        timeamount = 0
+      else:
+        timeunit = timetext.group(2) + 's'
+        timeamount = int(timetext.group(1))
+    
+    postdate = today - timedelta(**{timeunit: timeamount})
+    dates.append(postdate)
+  return(dates)
 
-# def extract_posting_description(soup)
+# print(extract_dates_from_result(soup))
+# dates = extract_dates_from_resut(soup)
+# print(dates)
+# print(len(dates))

@@ -24,3 +24,32 @@
 
 https://ca.indeed.com/jobs?q=developer&l=Toronto%2C+ON
 
+
+
+#### Back End Architecture thoughts
+
+- jobquery/
+- User profiles 
+- Users have previously saved search criteria
+- Users can review, modify edit old searches
+- Rerun query, removing duplicates? or by last run date
+- Apply for job
+  - Standard cover letter replacer
+  - Track steps and date flagged ( see muse google sheets)
+    - Applied
+    - Do Research
+    - Follow up
+    - Round(s) ## Interview scheduled -> sync with google calendar?
+    - Interview Notes
+    - Send thank you notes / follow up flags
+    - Proficiency test
+    - Other notes
+    - Offer
+    - Accepted
+
+##### UI Elements
+- Manage queries
+- Manage user profile
+- Prompt for keep duplicates? 
+- Exclude recruiters
+- 

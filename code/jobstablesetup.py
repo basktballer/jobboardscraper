@@ -17,7 +17,10 @@ try:
           LOCATION        TEXT,
           DESCRIPTION     TEXT    NOT NULL,
           COMPANY         TEXT    NOT NULL,
-          URL             TEXT); '''
+          URL             TEXT,
+          DATEPOSTED      DATE    NOT NULL,
+          UNIQUE (TITLE, COMPANY, DATEPOSTED)
+          ); '''
     
     cursor.execute(create_table_query)
     connection.commit()
